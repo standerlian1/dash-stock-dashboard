@@ -6,3 +6,7 @@ yfinance==0.2.40
 APScheduler==3.10.4
 supabase==2.6.0
 python-dotenv==1.0.1
+httpx>=0.24
+python-dotenv>=1.0.0
+
+

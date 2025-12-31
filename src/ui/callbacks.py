@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import httpx
+from ..utils.retry import retry
+
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -159,14 +163,44 @@ def register_callbacks(settings: Settings, repo: SupabaseRepo) -> None:
 
         return fig, last_refresh, timestamp_note
 
+   # @callback(
+    #    Output("last-ingestion", "children"),
+     #   Input("ui-refresh-interval", "n_intervals"),
+    #)
+    #def update_ingestion_status(n: int):
+     #   status = repo.get_ingestion_status()
+      #  if status.last_success_utc:
+       #     return f"Last successful ingestion (UTC): {status.last_success_utc.replace(microsecond=0).isoformat()}"
+        #if status.last_error:
+         #   return f"Last ingestion error: {status.last_error}"
+       # return "Last successful ingestion: (none yet)"
     @callback(
-        Output("last-ingestion", "children"),
-        Input("ui-refresh-interval", "n_intervals"),
-    )
+    Output("last-ingestion", "children"),
+    Input("ui-refresh-interval", "n_intervals"),
+)
     def update_ingestion_status(n: int):
-        status = repo.get_ingestion_status()
+        def _call():
+            return repo.get_ingestion_status()
+
+    try:
+        status = retry(
+            _call,
+            attempts=3,
+            exceptions=(ReadError, Exception),
+        )
+
         if status.last_success_utc:
-            return f"Last successful ingestion (UTC): {status.last_success_utc.replace(microsecond=0).isoformat()}"
+            return (
+                "Last successful ingestion (UTC): "
+                f"{status.last_success_utc.replace(microsecond=0).isoformat()}"
+            )
+
         if status.last_error:
             return f"Last ingestion error: {status.last_error}"
+
         return "Last successful ingestion: (none yet)"
+
+    except Exception as e:
+        # IMPORTANT: never let Dash crash the callback
+        return f"Last successful ingestion: (temporary error: {type(e).__name__})"
+
